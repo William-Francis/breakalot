@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Breakalot</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #1a1a2e;
+        color: #eee;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      #app {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+      canvas {
+        border: 2px solid #444;
+        border-radius: 4px;
+      }
+
+      /* Lobby */
+      #lobby {
+        background: #16213e;
+        padding: 32px;
+        border-radius: 12px;
+        min-width: 360px;
+        text-align: center;
+      }
+      #lobby h1 {
+        margin-bottom: 20px;
+        font-size: 2em;
+      }
+      #lobby input,
+      #lobby button {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        margin: 8px 0;
+        border: none;
+        border-radius: 6px;
+        font-size: 1em;
+      }
+      #lobby input[type="text"] {
+        background: #0f3460;
+        color: #eee;
+      }
+      #lobby input[type="color"] {
+        height: 44px;
+        cursor: pointer;
+        background: #0f3460;
+      }
+      #lobby button {
+        background: #e94560;
+        color: #fff;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #lobby button:hover {
+        background: #c73650;
+      }
+      #lobby button:disabled {
+        background: #555;
+        cursor: default;
+      }
+      #player-list {
+        margin-top: 16px;
+        text-align: left;
+      }
+      .team-section {
+        margin: 8px 0;
+      }
+      .team-section h3 {
+        font-size: 0.9em;
+        color: #aaa;
+      }
+      .player-entry {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+      }
+      .color-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      /* Game row (canvas + combo panels + progress bar) */
+      #game-row {
+        display: none;
+        flex-direction: row;
+        align-items: stretch;
+      }
+      #game-row.active {
+        display: flex;
+      }
+
+      /* Combo side panels */
+      .combo-panel {
+        width: 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 8px;
+        background: #16213e;
+      }
+      #combo-panel-a {
+        justify-content: flex-start;
+        border-top: 3px solid #ff4455;
+      }
+      #combo-panel-b {
+        justify-content: flex-end;
+        border-bottom: 3px solid #3b9ede;
+      }
+
+      /* Team identity header */
+      .team-header {
+        font-size: 0.6em;
+        font-weight: 900;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 3px;
+        width: 100%;
+        text-align: center;
+      }
+      .team-header.red {
+        color: #ff4455;
+        border: 1px solid #ff445544;
+        background: #ff445511;
+      }
+      .team-header.blue {
+        color: #3b9ede;
+        border: 1px solid #3b9ede44;
+        background: #3b9ede11;
+      }
+
+      .combo-score-display {
+        text-align: center;
+      }
+      .combo-score-label {
+        display: block;
+        font-size: 0.6em;
+        letter-spacing: 3px;
+        color: #555;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+      }
+      .combo-score-value {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #ccc;
+      }
+
+      .combo-badge {
+        text-align: center;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .combo-badge.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .combo-name {
+        font-size: 0.75em;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .combo-mult {
+        font-size: 2em;
+        font-weight: 900;
+        line-height: 1;
+        margin-bottom: 6px;
+      }
+      .combo-hit {
+        font-size: 0.6em;
+        letter-spacing: 2px;
+        color: #888;
+        text-transform: uppercase;
+      }
+
+      /* Level colours */
+      .combo-badge[data-level="1"] .combo-name,
+      .combo-badge[data-level="1"] .combo-mult {
+        color: #f5c518;
+        text-shadow: 0 0 12px #f5c51888;
+      }
+      .combo-badge[data-level="2"] .combo-name,
+      .combo-badge[data-level="2"] .combo-mult {
+        color: #c340e0;
+        text-shadow: 0 0 12px #c340e088;
+      }
+      .combo-badge[data-level="3"] .combo-name,
+      .combo-badge[data-level="3"] .combo-mult {
+        color: #ff6b35;
+        text-shadow: 0 0 16px #ff6b3599;
+      }
+
+      /* Shake animation */
+      @keyframes comboShake {
+        0% {
+          transform: translateX(0) rotate(0deg);
+        }
+        10% {
+          transform: translateX(-5px) rotate(-2deg);
+        }
+        25% {
+          transform: translateX(5px) rotate(2deg);
+        }
+        40% {
+          transform: translateX(-4px) rotate(-1.5deg);
+        }
+        55% {
+          transform: translateX(4px) rotate(1.5deg);
+        }
+        70% {
+          transform: translateX(-2px) rotate(-0.5deg);
+        }
+        85% {
+          transform: translateX(2px) rotate(0.5deg);
+        }
+        100% {
+          transform: translateX(0) rotate(0deg);
+        }
+      }
+      /* Fade-out + slide-down */
+      @keyframes comboFadeDown {
+        0% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        20% {
+          opacity: 0.9;
+          transform: translateY(4px);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(28px);
+        }
+      }
+      .combo-badge.shake {
+        animation: comboShake 0.28s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+      }
+      .combo-badge.fade-out {
+        animation: comboFadeDown 0.55s ease forwards;
+      }
+
+      /* Progress bar column */
+      #progress-col {
+        width: 54px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: #16213e;
+        padding: 16px 0 16px;
+        gap: 8px;
+      }
+      .prog-team-label {
+        font-size: 0.5em;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        writing-mode: horizontal-tb;
+      }
+      .prog-team-label.red {
+        color: #ff4455;
+      }
+      .prog-team-label.blue {
+        color: #3b9ede;
+      }
+      #progress-bar-wrap {
+        flex: 1;
+        width: 22px;
+        background: #0d0d1a;
+        border-radius: 11px;
+        border: 1px solid #2a2a40;
+        position: relative;
+        overflow: hidden;
+      }
+      #prog-fill-a {
+        position: absolute;
+        bottom: 50%;
+        left: 0;
+        right: 0;
+        height: 0%;
+        background: linear-gradient(to top, #ff4455, #ff7788);
+        transition: height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        border-radius: 0 0 11px 11px;
+      }
+      #prog-fill-b {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 0%;
+        background: linear-gradient(to bottom, #3b9ede, #66bbff);
+        transition: height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        border-radius: 0 0 11px 11px;
+      }
+      #prog-center-mark {
+        position: absolute;
+        top: calc(50% - 1px);
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #444;
+      }
+
+      /* HUD */
+      #hud {
+        display: none;
+        align-self: stretch;
+        justify-content: space-between;
+        padding: 4px 8px;
+        font-size: 0.9em;
+        color: #aaa;
+      }
+      #hud.active {
+        display: flex;
+      }
+
+      /* Game Over overlay */
+      #game-over {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: rgba(0, 0, 0, 0.8);
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 16px;
+        font-size: 1.5em;
+      }
+      #game-over.active {
+        display: flex;
+      }
+      #game-over button {
+        padding: 12px 32px;
+        font-size: 0.8em;
+        background: #e94560;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="lobby">
+        <h1>🧱 Breakalot</h1>
+        <input
+          type="text"
+          id="name-input"
+          placeholder="Your name"
+          maxlength="20"
+        />
+        <input type="color" id="color-input" value="#e94560" />
+        <button id="join-btn">Join Game</button>
+        <div id="player-list"></div>
+        <button id="ready-btn" style="display: none">Ready</button>
+      </div>
+      <div id="hud">
+        <span id="hud-team-a">Team A: 0 bricks</span>
+        <span id="hud-time">0:00</span>
+        <span id="hud-team-b">Team B: 0 bricks</span>
+      </div>
+      <div id="game-row">
+        <!-- Team A · Red · content anchored to top -->
+        <div id="combo-panel-a" class="combo-panel">
+          <div class="team-header red">Team A</div>
+          <div class="combo-score-display">
+            <span class="combo-score-label">Score</span>
+            <span class="combo-score-value">0</span>
+          </div>
+          <div class="combo-badge" data-level="0">
+            <div class="combo-name">Baller</div>
+            <div class="combo-mult">1×</div>
+            <div class="combo-hit">0 hit streak</div>
+          </div>
+        </div>
+
+        <canvas id="game-canvas" width="1600" height="1100"></canvas>
+
+        <!-- Team B · Blue · content anchored to bottom -->
+        <div id="combo-panel-b" class="combo-panel">
+          <div class="combo-badge" data-level="0">
+            <div class="combo-name">Baller</div>
+            <div class="combo-mult">1×</div>
+            <div class="combo-hit">0 hit streak</div>
+          </div>
+          <div class="combo-score-display">
+            <span class="combo-score-label">Score</span>
+            <span class="combo-score-value">0</span>
+          </div>
+          <div class="team-header blue">Team B</div>
+        </div>
+
+        <!-- Progress bar: fills from center · red up = A winning · blue down = B winning -->
+        <div id="progress-col">
+          <span class="prog-team-label red">A</span>
+          <div id="progress-bar-wrap">
+            <div id="prog-fill-a"></div>
+            <div id="prog-center-mark"></div>
+            <div id="prog-fill-b"></div>
+          </div>
+          <span class="prog-team-label blue">B</span>
+        </div>
+      </div>
+      <div id="game-over">
+        <div id="game-over-text">Game Over!</div>
+        <button id="play-again-btn">Play Again</button>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
